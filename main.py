@@ -1,5 +1,6 @@
 import pygame
 import os
+import random
 
 pygame.init()
 
@@ -10,20 +11,39 @@ TILE_SIZE = 40
 SCREEN_WIDTH = 700
 SCREEN_HEIGHT = 500
 BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
 scroll = 0
 moving_left = False
 moving_right = False
 shoot = False
 greenArrow = False
 greenArrow_thrown = False
+
+health_img = pygame.image.load("Assets/health.png")
+health_img = pygame.transform.scale(
+    health_img,
+    (int(health_img.get_width() / 15), int(health_img.get_height() / 15)))
+arrow_box_img = pygame.image.load("Assets/arrow_box.png")
+arrow_box_img = pygame.transform.scale(
+    arrow_box_img,
+    (int(arrow_box_img.get_width() / 30), int(arrow_box_img.get_height() / 30)))
+arrow2_box_img = pygame.image.load("Assets/arrow2_box.png")
+arrow2_box_img = pygame.transform.scale(
+    arrow2_box_img,
+    (int(arrow2_box_img.get_width() / 30), int(arrow2_box_img.get_height() / 30)))
+item_boxes = {
+    'Health' : health_img,
+    'Arrow' : arrow_box_img,
+    'Arrow2' : arrow2_box_img
+}
 arrow_img = pygame.image.load("Assets/arrow.png")
+arrow_img = pygame.transform.scale(
+    arrow_img,
+    (int(arrow_img.get_width() / 15), int(arrow_img.get_height() / 15)))
 arrow2_img = pygame.image.load("Assets/arrow2.png")
 arrow2_img = pygame.transform.scale(
     arrow2_img,
     (int(arrow2_img.get_width() / 15), int(arrow2_img.get_height() / 15)))
-arrow_img = pygame.transform.scale(
-    arrow_img,
-    (int(arrow_img.get_width() / 15), int(arrow_img.get_height() / 15)))
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("The Adventures of Red Riding Hood!")
@@ -35,6 +55,11 @@ for i in range(1, 3):
     background_imgs.append(background_image)
     bg_width = background_imgs[0].get_width()
 
+font = pygame.font.SysFont('Times New Roman', 20)
+
+def draw_text(text, font, text_color, x, y):
+    img = font.render(text, True, text_color)
+    screen.blit(img, (x, y))
 
 def background():
     for x in range(5):
@@ -42,11 +67,10 @@ def background():
         for i in background_imgs:
             screen.blit(i, ((x * bg_width) - scroll * speed, 0))
             speed += 0.25
-    pygame.draw.line(screen, BLACK, (0, 400), (SCREEN_WIDTH, 400))
+    pygame.draw.line(screen, BLACK, (0, 415), (SCREEN_WIDTH, 415))
 
 
 class Character(pygame.sprite.Sprite):
-
     def __init__(self, char_type, x, y, scale, speed, ammo, greenArrows):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
@@ -67,8 +91,13 @@ class Character(pygame.sprite.Sprite):
         self.frame_index = 0
         self.action = 0
         self.update_time = pygame.time.get_ticks()
+        #
+        self.move_counter = 0
+        self.vision = pygame.Rect(0, 0, 150, 20)
+        self.idling = False
+        self.idling_counter = 0
 
-        animation_types = ['Idle', 'Run', 'Jump', 'Death', 'Attack', 'Attack2']
+        animation_types = ['Idle', 'Run', 'Jump', 'Death', 'Attack']
         for animation in animation_types:
             temp_list = []
             num_of_frames = len(
@@ -120,10 +149,39 @@ class Character(pygame.sprite.Sprite):
         if self.shoot_cooldown == 0 and self.ammo > 0:
             self.shoot_cooldown = 20
             arrow = Arrow(
-                self.rect.centerx + (0.5 * self.rect.size[0] * self.direction),
+                self.rect.centerx + (0.75 * self.rect.size[0] * self.direction),
                 self.rect.centery, self.direction)
             arrow_group.add(arrow)
             self.ammo -= 1
+
+    def ai(self):
+        if self.alive and player.alive:
+            if self.idling == False and random.randint(1, 200) == 1:
+                self.update_action(0)
+                self.idling = True
+                self.idling_counter = 50
+            if self.vision.colliderect(player.rect):
+                player.update_action(4)
+                self.update_action(4)
+                player.health-=0.1
+            else:
+                if self.idling == False:
+                    if self.direction == 1:
+                        ai_moving_right = True
+                    else:
+                        ai_moving_right = False
+                    ai_moving_left = not ai_moving_right
+                    self.move(ai_moving_left, ai_moving_right)
+                    self.update_action(1)
+                    self.move_counter += 1
+                    self.vision.center = (self.rect.centerx + 50 * self.direction, self.rect.centery)
+                    if self.move_counter > TILE_SIZE:
+                        self.direction *= -1
+                        self.move_counter *= -1
+                else:
+                    self.idling_counter -= 1
+                    if self.idling_counter <= 0:
+                        self.idling = False
 
     def update_animation(self):
         ANIMATION_COOLDOWN = 100  #ANIMATION TIMER
@@ -151,12 +209,29 @@ class Character(pygame.sprite.Sprite):
             self.update_action(3)
 
     def draw(self):
-        screen.blit(pygame.transform.flip(self.image, self.flip, False),
-                    self.rect)
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
+class ItemBox(pygame.sprite.Sprite):
+    def __init__(self, item_type, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.item_type =  item_type
+        self.image = item_boxes[self.item_type]
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+   
+    def update(self):
+        if pygame.sprite.collide_rect(self, player):
+            if self.item_type == 'Health':
+                player.health += 25
+                if player.health > player.max_health:
+                    player.health = player.max_health
+            elif self.item_type == 'Arrow':
+                player.ammo += 3
+            elif self.item_type == 'Arrow2':
+                player.greenArrows +=1
+            self.kill()
 
 class Arrow(pygame.sprite.Sprite):
-
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
         self.speed = 10
@@ -180,7 +255,6 @@ class Arrow(pygame.sprite.Sprite):
 
 
 class GreenArrow(pygame.sprite.Sprite):
-
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
         self.timer = 100
@@ -215,13 +289,20 @@ class GreenArrow(pygame.sprite.Sprite):
                 wolf.health -= 50
                 self.kill()
 
-
 enemy_group = pygame.sprite.Group()
 arrow_group = pygame.sprite.Group()
 greenArrow_group = pygame.sprite.Group()
+item_box_group = pygame.sprite.Group()
 
-player = Character('player', 100, 350, 2, 5, 10, 3)
-wolf = Character('wolf', 400, 350, 2, 2, 10, 0)
+item_box = ItemBox('Health', 100, 350)
+item_box_group.add(item_box)
+item_box = ItemBox('Arrow', 400, 375)
+item_box_group.add(item_box)
+item_box = ItemBox('Arrow2', 500, 380)
+item_box_group.add(item_box)
+
+player = Character('player', 150, 350, 2, 5, 10, 3)
+wolf = Character('wolf', 400, 386, 2, 2, 10, 0)
 enemy_group.add(wolf)
 
 run = True
@@ -229,17 +310,23 @@ while run:
     clock.tick(FPS)
 
     background()
+    draw_text(f'Health: {int(player.health)}', font, WHITE, 10, 30)
+    draw_text(f'Arrow: {player.ammo}', font, WHITE, 10, 50)
+    draw_text(f'Green Arrow: {player.greenArrows}', font, WHITE, 10, 70)
     player.update()
     player.draw()
+
     for wolf in enemy_group:
+        wolf.ai()
         wolf.update()
         wolf.draw()
 
     arrow_group.update()
     greenArrow_group.update()
-
+    item_box_group.update()
     arrow_group.draw(screen)
     greenArrow_group.draw(screen)
+    item_box_group.draw(screen)
 
     if player.alive:
         if shoot:
