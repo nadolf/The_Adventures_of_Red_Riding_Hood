@@ -1,15 +1,20 @@
 import pygame
 import os
 import random
+import csv
 
 pygame.init()
 
 clock = pygame.time.Clock()
 FPS = 60
-GRAVITY = 0.75
-TILE_SIZE = 40
+GRAVITY = 0.60
 SCREEN_WIDTH = 700
-SCREEN_HEIGHT = 500
+SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.7)
+level = 1
+ROWS = 16
+COLS =150
+TILE_SIZE = SCREEN_HEIGHT // ROWS
+TILE_TYPES = 16
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 scroll = 0
@@ -18,6 +23,12 @@ moving_right = False
 shoot = False
 greenArrow = False
 greenArrow_thrown = False
+
+img_list =[]
+for x in range(TILE_TYPES):
+    img = pygame.image.load(f'Assets/tile/{x}.png')
+    img = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+    img_list.append(img)
 
 health_img = pygame.image.load("Assets/health.png")
 health_img = pygame.transform.scale(
@@ -48,18 +59,17 @@ arrow2_img = pygame.transform.scale(
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("The Adventures of Red Riding Hood!")
 
+font = pygame.font.SysFont('Times New Roman', 20)
+def draw_text(text, font, text_color, x, y):
+    img = font.render(text, True, text_color)
+    screen.blit(img, (x, y))
+
 background_imgs = []
-for i in range(1, 3):
+for i in range(0, 8):
     background_image = pygame.image.load(
         f"Assets/background/background_layer_{i}.png").convert_alpha()
     background_imgs.append(background_image)
     bg_width = background_imgs[0].get_width()
-
-font = pygame.font.SysFont('Times New Roman', 20)
-
-def draw_text(text, font, text_color, x, y):
-    img = font.render(text, True, text_color)
-    screen.blit(img, (x, y))
 
 def background():
     for x in range(5):
@@ -67,8 +77,6 @@ def background():
         for i in background_imgs:
             screen.blit(i, ((x * bg_width) - scroll * speed, 0))
             speed += 0.25
-    pygame.draw.line(screen, BLACK, (0, 415), (SCREEN_WIDTH, 415))
-
 
 class Character(pygame.sprite.Sprite):
     def __init__(self, char_type, x, y, scale, speed, ammo, greenArrows):
@@ -113,6 +121,8 @@ class Character(pygame.sprite.Sprite):
         self.image = self.animation_list[self.action][self.frame_index]
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
 
     def update(self):
         self.update_animation()
@@ -139,9 +149,18 @@ class Character(pygame.sprite.Sprite):
         if self.vel_y > 10:
             self.vel_y
         dy += self.vel_y
-        if self.rect.bottom + dy > 415:
-            dy = 415 - self.rect.bottom
-            self.in_air = False
+        for tile in world.obstacle_list:
+            if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
+                dx = 0
+            if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                if self.vel_y < 0:
+                    self.vel_y = 0
+                    dy = tile[1].bottom - self.rect.top
+                elif self.vel_y >= 0:
+                    self.vel_y = 0
+                    self.in_air =False
+                    dy = tile[1].top - self.rect.bottom
+
         self.rect.x += dx
         self.rect.y += dy
 
@@ -161,7 +180,6 @@ class Character(pygame.sprite.Sprite):
                 self.idling = True
                 self.idling_counter = 50
             if self.vision.colliderect(player.rect):
-                player.update_action(4)
                 self.update_action(4)
                 player.health-=0.1
             else:
@@ -210,6 +228,70 @@ class Character(pygame.sprite.Sprite):
 
     def draw(self):
         screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+class World():
+    def __init__(self):
+        self.obstacle_list = []
+    def process_data(self, data):
+        for y, row in enumerate(data):
+            for x, tile in enumerate(row):
+                if tile >= 0:
+                    img = img_list[tile]
+                    img_rect =  img.get_rect()
+                    img_rect.x = x * TILE_SIZE
+                    img_rect.y = y * TILE_SIZE
+                    tile_data = (img, img_rect)
+                    if tile >= 0 and tile <= 3:
+                        self.obstacle_list.append(tile_data)
+                    elif tile == 4:
+                        water = Water(img, x * TILE_SIZE, y * TILE_SIZE)
+                        water_group.add(water)
+                    elif tile >=5 and tile <= 9:
+                        decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
+                        decoration_group.add(decoration)
+                    elif tile == 11:
+                        player = Character('player', x * TILE_SIZE, y * TILE_SIZE, 2, 2, 10, 3)
+                    elif tile == 12:
+                        wolf = Character('wolf', x * TILE_SIZE, y * TILE_SIZE, 2, 2, 0, 0)
+                        enemy_group.add(wolf)
+                    elif tile == 13:
+                        item_box = ItemBox('Arrow', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box_group.add(item_box)
+                    elif tile == 14:
+                        item_box = ItemBox('Arrow2', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box_group.add(item_box)
+                    elif tile == 15:
+                        item_box = ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box_group.add(item_box)
+                    elif tile == 10:
+                        exit = Exit(img, x * TILE_SIZE, y * TILE_SIZE)
+                        exit_group.add(exit)
+        return player
+    def draw(self):
+        for tile in self.obstacle_list:
+            screen.blit(tile[0], tile[1])
+
+
+
+class Decoration(pygame.sprite.Sprite):
+    def __init__(self, img, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = img
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+
+class Water(pygame.sprite.Sprite):
+    def __init__(self, img, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = img
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+
+class Exit(pygame.sprite.Sprite):
+    def __init__(self, img, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = img
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
 
 class ItemBox(pygame.sprite.Sprite):
     def __init__(self, item_type, x, y):
@@ -244,9 +326,11 @@ class Arrow(pygame.sprite.Sprite):
         self.rect.x += (self.direction * self.speed)
         if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
             self.kill()
-        if pygame.sprite.spritecollide(player, arrow_group, False):
-            if player.alive:
-                player.health -= 5
+
+        for tile in world.obstacle_list:
+            if tile[1].colliderect(self.rect):
+                self.kill()
+
         for wolf in enemy_group:
             if pygame.sprite.spritecollide(wolf, arrow_group, False):
                 if wolf.alive:
@@ -262,6 +346,8 @@ class GreenArrow(pygame.sprite.Sprite):
         self.speed = 5
         self.image = arrow2_img
         self.rect = self.image.get_rect()
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
         self.rect.center = (x, y)
         self.direction = direction
 
@@ -271,19 +357,23 @@ class GreenArrow(pygame.sprite.Sprite):
         dy = self.vel_y
         self.rect.x += dx
         self.rect.y += dy
-
-        if self.rect.bottom + dy > 415:
-            dy = 415 - self.rect.bottom
-            self.speed = 0
-        if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
-            self.direction *= -1
-            dx = self.direction * self.speed
+        
+        for tile in world.obstacle_list:
+            if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
+                self.direction *= -1
+                dx = self.direction * self.speed
+            if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                self.speed = 0
+                if self.vel_y < 0:
+                    self.vel_y = 0
+                    dy = tile[1].bottom - self.rect.top
+                elif self.vel_y >= 0:
+                    self.vel_y = 0
+                    dy = tile[1].top - self.rect.bottom
 
         self.rect.x += dx
         self.rect.y += dy
-        if pygame.sprite.spritecollide(player, greenArrow_group, False):
-            if player.alive:
-                player.health -= 1
+
         if pygame.sprite.spritecollide(wolf, greenArrow_group, False):
             if wolf.alive:
                 wolf.health -= 50
@@ -293,23 +383,28 @@ enemy_group = pygame.sprite.Group()
 arrow_group = pygame.sprite.Group()
 greenArrow_group = pygame.sprite.Group()
 item_box_group = pygame.sprite.Group()
+decoration_group = pygame.sprite.Group()
+water_group = pygame.sprite.Group()
+exit_group = pygame.sprite.Group()
 
-item_box = ItemBox('Health', 100, 350)
-item_box_group.add(item_box)
-item_box = ItemBox('Arrow', 400, 375)
-item_box_group.add(item_box)
-item_box = ItemBox('Arrow2', 500, 380)
-item_box_group.add(item_box)
-
-player = Character('player', 150, 350, 2, 5, 10, 3)
-wolf = Character('wolf', 400, 386, 2, 2, 10, 0)
-enemy_group.add(wolf)
+world_data = []
+for row in range(ROWS):
+	r = [-1] * COLS
+	world_data.append(r)
+with open(f'level{level}_data.csv', newline='') as csvfile:
+	reader = csv.reader(csvfile, delimiter=',')
+	for x, row in enumerate(reader):
+		for y, tile in enumerate(row):
+			world_data[x][y] = int(tile)
+world = World()
+player = world.process_data(world_data)
 
 run = True
 while run:
     clock.tick(FPS)
 
     background()
+    world.draw()
     draw_text(f'Health: {int(player.health)}', font, WHITE, 10, 30)
     draw_text(f'Arrow: {player.ammo}', font, WHITE, 10, 50)
     draw_text(f'Green Arrow: {player.greenArrows}', font, WHITE, 10, 70)
@@ -324,9 +419,15 @@ while run:
     arrow_group.update()
     greenArrow_group.update()
     item_box_group.update()
+    decoration_group.update()
+    water_group.update()
+    exit_group.update()
     arrow_group.draw(screen)
     greenArrow_group.draw(screen)
     item_box_group.draw(screen)
+    decoration_group.draw(screen)
+    water_group.draw(screen)
+    exit_group.draw(screen)
 
     if player.alive:
         if shoot:
@@ -347,9 +448,9 @@ while run:
 
     key = pygame.key.get_pressed()
     if key[pygame.K_LEFT] and scroll > 0:
-        scroll -= 5
-    if key[pygame.K_RIGHT] and scroll < 3000:
-        scroll += 5
+        scroll -= 2
+    if key[pygame.K_RIGHT] and scroll < 1100:
+        scroll += 2
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
