@@ -9,14 +9,17 @@ clock = pygame.time.Clock()
 FPS = 60
 GRAVITY = 0.60
 SCREEN_WIDTH = 700
-SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.7)
-level = 1
+SCREEN_HEIGHT = 480
 ROWS = 16
 COLS =150
 TILE_SIZE = SCREEN_HEIGHT // ROWS
 TILE_TYPES = 16
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+SCROLL_THRESH = 250
+screen_scroll = 0
+bg_scroll = 0
+level = 1
 scroll = 0
 moving_left = False
 moving_right = False
@@ -72,11 +75,13 @@ for i in range(0, 8):
     bg_width = background_imgs[0].get_width()
 
 def background():
+    screen.fill(BLACK)
+    width = 700
     for x in range(5):
-        speed = 0.5
+        speed = 0.25
         for i in background_imgs:
-            screen.blit(i, ((x * bg_width) - scroll * speed, 0))
-            speed += 0.25
+            screen.blit(i, ((x * width) - bg_scroll * speed, 0))
+            speed += 0.05
 
 class Character(pygame.sprite.Sprite):
     def __init__(self, char_type, x, y, scale, speed, ammo, greenArrows):
@@ -131,6 +136,7 @@ class Character(pygame.sprite.Sprite):
             self.shoot_cooldown -= 1
 
     def move(self, moving_left, moving_right):
+        screen_scroll = 0
         dx = 0
         dy = 0
         if moving_left:
@@ -152,6 +158,9 @@ class Character(pygame.sprite.Sprite):
         for tile in world.obstacle_list:
             if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                 dx = 0
+                if self.char_type == 'enemy':
+                    self.direction *= -1
+                    self.move_counter = 0
             if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
                 if self.vel_y < 0:
                     self.vel_y = 0
@@ -160,9 +169,19 @@ class Character(pygame.sprite.Sprite):
                     self.vel_y = 0
                     self.in_air =False
                     dy = tile[1].top - self.rect.bottom
+        
+        if self.char_type == 'player':
+            if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
+                dx = 0
 
         self.rect.x += dx
         self.rect.y += dy
+
+        if self.char_type == 'player':
+            if (self.rect.right > SCREEN_WIDTH - SCROLL_THRESH and bg_scroll < (world.level_length * TILE_SIZE) - SCREEN_WIDTH) or (self.rect.left < SCROLL_THRESH and bg_scroll > abs(dx)):
+                self.rect.x -= dx
+                screen_scroll = -dx
+        return screen_scroll
 
     def shoot(self):
         if self.shoot_cooldown == 0 and self.ammo > 0:
@@ -200,6 +219,7 @@ class Character(pygame.sprite.Sprite):
                     self.idling_counter -= 1
                     if self.idling_counter <= 0:
                         self.idling = False
+        self.rect.x += screen_scroll
 
     def update_animation(self):
         ANIMATION_COOLDOWN = 100  #ANIMATION TIMER
@@ -232,6 +252,7 @@ class World():
     def __init__(self):
         self.obstacle_list = []
     def process_data(self, data):
+        self.level_length = len(data[0])
         for y, row in enumerate(data):
             for x, tile in enumerate(row):
                 if tile >= 0:
@@ -249,7 +270,7 @@ class World():
                         decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
                         decoration_group.add(decoration)
                     elif tile == 11:
-                        player = Character('player', x * TILE_SIZE, y * TILE_SIZE, 2, 2, 10, 3)
+                        player = Character('player', x * TILE_SIZE, y * TILE_SIZE, 2, 4, 10, 3)
                     elif tile == 12:
                         wolf = Character('wolf', x * TILE_SIZE, y * TILE_SIZE, 2, 2, 0, 0)
                         enemy_group.add(wolf)
@@ -268,9 +289,8 @@ class World():
         return player
     def draw(self):
         for tile in self.obstacle_list:
+            tile[1][0] += screen_scroll
             screen.blit(tile[0], tile[1])
-
-
 
 class Decoration(pygame.sprite.Sprite):
     def __init__(self, img, x, y):
@@ -279,6 +299,9 @@ class Decoration(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
 
+    def update(self):
+        self.rect.x += screen_scroll
+
 class Water(pygame.sprite.Sprite):
     def __init__(self, img, x, y):
         pygame.sprite.Sprite.__init__(self)
@@ -286,12 +309,18 @@ class Water(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
 
+    def update(self):
+        self.rect.x += screen_scroll
+
 class Exit(pygame.sprite.Sprite):
     def __init__(self, img, x, y):
         pygame.sprite.Sprite.__init__(self)
         self.image = img
         self.rect = self.image.get_rect()
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+    
+    def update(self):
+        self.rect.x += screen_scroll
 
 class ItemBox(pygame.sprite.Sprite):
     def __init__(self, item_type, x, y):
@@ -302,6 +331,7 @@ class ItemBox(pygame.sprite.Sprite):
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
    
     def update(self):
+        self.rect.x += screen_scroll
         if pygame.sprite.collide_rect(self, player):
             if self.item_type == 'Health':
                 player.health += 25
@@ -323,7 +353,7 @@ class Arrow(pygame.sprite.Sprite):
         self.direction = direction
 
     def update(self):
-        self.rect.x += (self.direction * self.speed)
+        self.rect.x += (self.direction * self.speed) + screen_scroll
         if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
             self.kill()
 
@@ -371,7 +401,7 @@ class GreenArrow(pygame.sprite.Sprite):
                     self.vel_y = 0
                     dy = tile[1].top - self.rect.bottom
 
-        self.rect.x += dx
+        self.rect.x += dx + screen_scroll
         self.rect.y += dy
 
         if pygame.sprite.spritecollide(wolf, greenArrow_group, False):
@@ -444,14 +474,9 @@ while run:
             player.update_action(1)
         else:
             player.update_action(0)
-        player.move(moving_left, moving_right)
-
-    key = pygame.key.get_pressed()
-    if key[pygame.K_LEFT] and scroll > 0:
-        scroll -= 2
-    if key[pygame.K_RIGHT] and scroll < 1100:
-        scroll += 2
-
+        screen_scroll = player.move(moving_left, moving_right)
+        bg_scroll -= screen_scroll 
+    
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
