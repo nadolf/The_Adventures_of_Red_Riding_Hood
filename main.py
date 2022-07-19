@@ -80,12 +80,9 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("The Adventures of Red Riding Hood!")
 
 font = pygame.font.SysFont('Times New Roman', 20)
-
-
 def draw_text(text, font, text_color, x, y):
     img = font.render(text, True, text_color)
     screen.blit(img, (x, y))
-
 
 background_imgs = []
 for i in range(0, 8):
@@ -93,7 +90,6 @@ for i in range(0, 8):
         f"Assets/background/background_layer_{i}.png").convert_alpha()
     background_imgs.append(background_image)
     bg_width = background_imgs[0].get_width()
-
 
 def background():
     screen.fill(BLACK)
@@ -103,7 +99,6 @@ def background():
         for i in background_imgs:
             screen.blit(i, ((x * width) - bg_scroll * speed, 0))
             speed += 0.05
-
 
 def reset_level():
     enemy_group.empty()
@@ -120,9 +115,7 @@ def reset_level():
         data.append(r)
     return data
 
-
 class Character(pygame.sprite.Sprite):
-
     def __init__(self, char_type, x, y, scale, speed, ammo, greenArrows):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
@@ -307,9 +300,7 @@ class Character(pygame.sprite.Sprite):
         screen.blit(pygame.transform.flip(self.image, self.flip, False),
                     self.rect)
 
-
 class World():
-
     def __init__(self):
         self.obstacle_list = []
 
@@ -361,7 +352,6 @@ class World():
             tile[1][0] += screen_scroll
             screen.blit(tile[0], tile[1])
 
-
 class Decoration(pygame.sprite.Sprite):
 
     def __init__(self, img, x, y):
@@ -373,7 +363,6 @@ class Decoration(pygame.sprite.Sprite):
 
     def update(self):
         self.rect.x += screen_scroll
-
 
 class Water(pygame.sprite.Sprite):
 
@@ -387,9 +376,7 @@ class Water(pygame.sprite.Sprite):
     def update(self):
         self.rect.x += screen_scroll
 
-
 class Exit(pygame.sprite.Sprite):
-
     def __init__(self, img, x, y):
         pygame.sprite.Sprite.__init__(self)
         self.image = img
@@ -400,9 +387,7 @@ class Exit(pygame.sprite.Sprite):
     def update(self):
         self.rect.x += screen_scroll
 
-
 class ItemBox(pygame.sprite.Sprite):
-
     def __init__(self, item_type, x, y):
         pygame.sprite.Sprite.__init__(self)
         self.item_type = item_type
@@ -424,9 +409,7 @@ class ItemBox(pygame.sprite.Sprite):
                 player.greenArrows += 1
             self.kill()
 
-
 class Arrow(pygame.sprite.Sprite):
-
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
         self.speed = 10
@@ -450,9 +433,7 @@ class Arrow(pygame.sprite.Sprite):
                     wolf.health -= 25
                     self.kill()
 
-
 class GreenArrow(pygame.sprite.Sprite):
-
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
         self.timer = 100
@@ -495,9 +476,7 @@ class GreenArrow(pygame.sprite.Sprite):
                 wolf.health -= 50
                 self.kill()
 
-
 class TransitionFade():
-
     def __init__(self, direction, color, speed):
         self.direction = direction
         self.color = color
@@ -528,16 +507,12 @@ class TransitionFade():
             fade_complete = True
         return fade_complete
 
-
 intro_fade = TransitionFade(1, BLACK, 5)
 death_fade = TransitionFade(2, BLACK, 10)
 
-start_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 - 80,
-                             start_img, 5)
-exit_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 + 20,
-                            exit_img, 5)
-restart_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 - 30,
-                               restart_img, 5)
+start_button = button.Button(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 80, start_img, 5)
+exit_button = button.Button(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20, exit_img, 5)
+restart_button = button.Button(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 30, restart_img, 5)
 
 enemy_group = pygame.sprite.Group()
 arrow_group = pygame.sprite.Group()
