@@ -1,9 +1,11 @@
 import pygame
+from pygame import mixer
 import button
 import os
 import random
 import csv
 
+mixer.init()
 pygame.init()
 
 clock = pygame.time.Clock()
@@ -30,6 +32,15 @@ moving_right = False
 shoot = False
 greenArrow = False
 greenArrow_thrown = False
+start_intro = False
+
+background_music = pygame.mixer.Sound("Assets/audio/music.wav")
+background_music.set_volume(0.3)
+background_music.play(-1)
+jump_fx = pygame.mixer.Sound("Assets/audio/jump.wav")
+jump_fx.set_volume(0.15)
+shoot_fx = pygame.mixer.Sound("Assets/audio/shoot.wav")
+shoot_fx.set_volume(0.3)
 
 start_img = pygame.image.load("Assets/start_icon.png")
 exit_img = pygame.image.load("Assets/exit_icon.png")
@@ -69,9 +80,12 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("The Adventures of Red Riding Hood!")
 
 font = pygame.font.SysFont('Times New Roman', 20)
+
+
 def draw_text(text, font, text_color, x, y):
     img = font.render(text, True, text_color)
     screen.blit(img, (x, y))
+
 
 background_imgs = []
 for i in range(0, 8):
@@ -90,6 +104,7 @@ def background():
             screen.blit(i, ((x * width) - bg_scroll * speed, 0))
             speed += 0.05
 
+
 def reset_level():
     enemy_group.empty()
     arrow_group.empty()
@@ -104,6 +119,7 @@ def reset_level():
         r = [-1] * COLS
         data.append(r)
     return data
+
 
 class Character(pygame.sprite.Sprite):
 
@@ -201,10 +217,10 @@ class Character(pygame.sprite.Sprite):
         level_complete = False
         if pygame.sprite.spritecollide(self, exit_group, False):
             level_complete = True
-        
+
         if self.rect.bottom > SCREEN_HEIGHT:
             self.health = 0
-        
+
         if self.char_type == 'player':
             if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
                 dx = 0
@@ -218,7 +234,7 @@ class Character(pygame.sprite.Sprite):
                     self.rect.left < SCROLL_THRESH and bg_scroll > abs(dx)):
                 self.rect.x -= dx
                 screen_scroll = -dx
-        
+
         return screen_scroll, level_complete
 
     def shoot(self):
@@ -291,7 +307,9 @@ class Character(pygame.sprite.Sprite):
         screen.blit(pygame.transform.flip(self.image, self.flip, False),
                     self.rect)
 
+
 class World():
+
     def __init__(self):
         self.obstacle_list = []
 
@@ -343,6 +361,7 @@ class World():
             tile[1][0] += screen_scroll
             screen.blit(tile[0], tile[1])
 
+
 class Decoration(pygame.sprite.Sprite):
 
     def __init__(self, img, x, y):
@@ -355,6 +374,7 @@ class Decoration(pygame.sprite.Sprite):
     def update(self):
         self.rect.x += screen_scroll
 
+
 class Water(pygame.sprite.Sprite):
 
     def __init__(self, img, x, y):
@@ -366,6 +386,7 @@ class Water(pygame.sprite.Sprite):
 
     def update(self):
         self.rect.x += screen_scroll
+
 
 class Exit(pygame.sprite.Sprite):
 
@@ -429,7 +450,9 @@ class Arrow(pygame.sprite.Sprite):
                     wolf.health -= 25
                     self.kill()
 
+
 class GreenArrow(pygame.sprite.Sprite):
+
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
         self.timer = 100
@@ -472,9 +495,49 @@ class GreenArrow(pygame.sprite.Sprite):
                 wolf.health -= 50
                 self.kill()
 
-start_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 - 80, start_img, 5)
-exit_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 + 20, exit_img, 5)
-restart_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 + 60, restart_img, 5)
+
+class TransitionFade():
+
+    def __init__(self, direction, color, speed):
+        self.direction = direction
+        self.color = color
+        self.speed = speed
+        self.fade_counter = 0
+
+    def fade(self):
+        fade_complete = False
+        self.fade_counter += self.speed
+        if self.direction == 1:
+            pygame.draw.rect(
+                screen, self.color,
+                (0 - self.fade_counter, 0, SCREEN_WIDTH // 2, SCREEN_HEIGHT))
+            pygame.draw.rect(screen, self.color,
+                             (SCREEN_WIDTH // 2 + self.fade_counter, 0,
+                              SCREEN_WIDTH, SCREEN_HEIGHT))
+            pygame.draw.rect(
+                screen, self.color,
+                (0, 0 - self.fade_counter, SCREEN_WIDTH, SCREEN_HEIGHT // 2))
+            pygame.draw.rect(screen, self.color,
+                             (0, SCREEN_HEIGHT // 2 + self.fade_counter,
+                              SCREEN_WIDTH, SCREEN_HEIGHT))
+
+        if self.direction == 2:
+            pygame.draw.rect(screen, self.color,
+                             (0, 0, SCREEN_WIDTH, 0 + self.fade_counter))
+        if self.fade_counter >= SCREEN_WIDTH:
+            fade_complete = True
+        return fade_complete
+
+
+intro_fade = TransitionFade(1, BLACK, 5)
+death_fade = TransitionFade(2, BLACK, 10)
+
+start_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 - 80,
+                             start_img, 5)
+exit_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 + 20,
+                            exit_img, 5)
+restart_button = button.Button(SCREEN_WIDTH - 350, SCREEN_HEIGHT // 2 - 30,
+                               restart_img, 5)
 
 enemy_group = pygame.sprite.Group()
 arrow_group = pygame.sprite.Group()
@@ -504,6 +567,7 @@ while run:
         screen.fill(BLACK)
         if start_button.draw(screen):
             start_game = True
+            start_intro = True
         if exit_button.draw(screen):
             run = False
 
@@ -534,6 +598,11 @@ while run:
         water_group.draw(screen)
         exit_group.draw(screen)
 
+        if start_intro == True:
+            if intro_fade.fade():
+                start_intro = False
+                intro_fade.fade_counter = 0
+
         if player.alive:
             if shoot:
                 player.shoot()
@@ -549,9 +618,11 @@ while run:
                 player.update_action(1)
             else:
                 player.update_action(0)
-            screen_scroll, level_complete = player.move(moving_left, moving_right)
+            screen_scroll, level_complete = player.move(
+                moving_left, moving_right)
             bg_scroll -= screen_scroll
             if level_complete:
+                start_intro = True
                 level += 1
                 bg_scroll = 0
                 world_data = reset_level()
@@ -563,19 +634,21 @@ while run:
                                 world_data[x][y] = int(tile)
                     world = World()
                     player = world.process_data(world_data)
-
         else:
             screen_scroll = 0
-            if restart_button.draw(screen):
-                bg_scroll = 0
-                world_data = reset_level()
-                with open(f'level{level}_data.csv', newline='') as csvfile:
-                    reader = csv.reader(csvfile, delimiter=',')
-                    for x, row in enumerate(reader):
-                        for y, tile in enumerate(row):
-                            world_data[x][y] = int(tile)
-                world = World()
-                player = world.process_data(world_data)
+            if death_fade.fade():
+                if restart_button.draw(screen):
+                    death_fade.fade_counter = 0
+                    start_intro = True
+                    bg_scroll = 0
+                    world_data = reset_level()
+                    with open(f'level{level}_data.csv', newline='') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
+                    world = World()
+                    player = world.process_data(world_data)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -587,10 +660,13 @@ while run:
                 moving_right = True
             if event.key == pygame.K_SPACE:
                 shoot = True
+                shoot_fx.play()
             if event.key == pygame.K_c:
                 greenArrow = True
+                shoot_fx.play()
             if event.key == pygame.K_UP and player.alive:
                 player.jump = True
+                jump_fx.play()
             if event.key == pygame.K_ESCAPE:
                 run = False
 
