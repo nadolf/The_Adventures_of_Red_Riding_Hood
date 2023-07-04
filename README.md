@@ -1,8 +1,13 @@
-# The Advantures of Red Riding Hood
-# Battle enemies
+# The Adventures of Red Riding Hood
+A 2D game utilizing Pythons Pygame library, featuring enemy encounters and level progression
 
-![3](https://user-images.githubusercontent.com/96559304/179867879-337ba77d-57ef-48d5-b3d8-0a4b557dac8e.jpg)
+# Demo
+https://github.com/nadolf/the-adventures-of-red-riding-hood/assets/96559304/c837d08f-08d6-40aa-9230-391912fa0af8
 
-# Collect items & move up in levels
+# Installation
+```sh
+pip install pygame
+```
 
-![4](https://user-images.githubusercontent.com/96559304/179867899-0fdc1d3e-de01-4975-9127-ef5236642711.jpg)
+# Project Status
+Completed
